@@ -22,7 +22,7 @@ An embedded system for monitoring energy meters using Modbus RTU protocol with O
 - SH1106 128x64 OLED Display
 - 6x Tactile buttons
 - 10KΩ resistors (for button pull-ups)
-- Rs485 ti TTL converter
+- RS485 to TTL converter
 - Jumper wires
 - Battery * 2
 - Zero PCB
@@ -58,5 +58,13 @@ An embedded system for monitoring energy meters using Modbus RTU protocol with O
 
 2. **Setup**
    ```bash
-   git clone https://github.com/yourusername/energy-meter-monitor.git
+   git clone https://github.com/himanshugithu/Portable-RS485.git
    cd portable_RS485
+
+## License
+
+This project is open-source and available under the MIT License.
+
+## Author
+
+Developed by Himanshu Fanibhare
