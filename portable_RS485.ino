@@ -203,31 +203,32 @@ void loop() {
   delay(200);
 }
 
-  if (!digitalRead(BTN_BACK)) {
-    Serial.println("BTN_BACK Pressed");
-    if (currentMenu == BAUD_RATE_MENU) {
-      currentMenu = MAIN_MENU;
-      showMainMenu();
-    } else if (currentMenu == SERIAL_CONFIG_MENU) {
-      currentMenu = BAUD_RATE_MENU;
-      showBaudRateSelection();
-    } else if (currentMenu == METER_ID_MENU) {
-      currentMenu = SERIAL_CONFIG_MENU;
-      showSerialConfigSelection();
-    } else if (currentMenu == FINAL_SELECTION_MENU) {
-    currentMenu = FUNCTION_CODE_MENU;  // Back to function codes
+if (!digitalRead(BTN_BACK)) {
+  Serial.println("BTN_BACK Pressed");
+  if (currentMenu == BAUD_RATE_MENU) {
+    currentMenu = MAIN_MENU;
+    showMainMenu();
+  } else if (currentMenu == SERIAL_CONFIG_MENU) {
+    currentMenu = BAUD_RATE_MENU;
+    showBaudRateSelection();
+  } else if (currentMenu == METER_ID_MENU) {
+    currentMenu = SERIAL_CONFIG_MENU;
+    showSerialConfigSelection();
+  } else if (currentMenu == FUNCTION_CODE_MENU) {  
+    currentMenu = METER_ID_MENU;
+    showMeterIdSelection();
+  } else if (currentMenu == FINAL_SELECTION_MENU) {
+    currentMenu = FUNCTION_CODE_MENU;
     showFunctionCodeSelection();
-  }
-  else if (currentMenu == REGISTER_VALUE_MENU) {
-    currentMenu = FINAL_SELECTION_MENU;  // Back to final summary
+  } else if (currentMenu == REGISTER_VALUE_MENU) {
+    currentMenu = FINAL_SELECTION_MENU;
     showFinalSelection();
-  }
-  else if (currentMenu == INITIALIZE_SERIAL_MENU) {
-    currentMenu = REGISTER_VALUE_MENU;  // Back to register config
+  } else if (currentMenu == INITIALIZE_SERIAL_MENU) {
+    currentMenu = REGISTER_VALUE_MENU;
     showRegisterValueSelection();
   }
-    delay(200);
-  }
+  delay(200);
+}
 }
 
 void showMainMenu() {
