@@ -1,6 +1,9 @@
 #include <Wire.h>
 #include <Adafruit_SH110X.h>
+#include "ModbusManager.h"
 
+#include "constant.h"
+ 
 // OLED display dimensions
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -22,8 +25,9 @@ enum MenuState { MAIN_MENU,
                  SERIAL_CONFIG_MENU,
                  METER_ID_MENU,
                  FUNCTION_CODE_MENU,
-                 SHOW_CONFIG,
-                 REGISTER_VALUE_MENU };
+                 FINAL_SELECTION_MENU,
+                 REGISTER_VALUE_MENU,
+                 INITIALIZE_SERIAL_MENU };
 MenuState currentMenu = MAIN_MENU;
 
 // Main menu options
@@ -35,7 +39,7 @@ int currentMainMenuIndex = 0;
 const int baudRates[] = { 9600, 19200, 38400, 57600, 115200 };
 int baudRateLength = sizeof(baudRates) / sizeof(baudRates[0]);
 int currentBaudIndex = 0;
-
+int baudRate = 0;
 // Serial configurations
 const char* serialConfigs[] = { "8N1", "8E1", "8O1" };
 int serialConfigLength = sizeof(serialConfigs) / sizeof(serialConfigs[0]);
@@ -46,6 +50,8 @@ int registerValue = 1;
 int registerStep = 1;
 int registerCount = 1;            // Added count variable
 int registerConfigSelection = 0;  // 0: Value, 1: Step, 2: Count (changed to integer)
+float dataFromMeter = 0.0;
+
 // const int functionCodes[] = { 0x03, 0x04, 0x06, 0x10 };
 const char* functionCodes[] = { "0x03", "0x04" };
 int functionCodeLength = sizeof(functionCodes) / sizeof(functionCodes[0]);
@@ -162,7 +168,6 @@ void loop() {
         registerStep = max(1, registerStep - 1);
       } else if (registerConfigSelection == 2) {  // Count
         registerCount = max(1, registerCount - 1);
-
       }
       showRegisterValueSelection();
     }
@@ -170,37 +175,33 @@ void loop() {
   }
 
   if (!digitalRead(BTN_SELECT)) {
-    Serial.println("BTN_SELECT Pressed");
-    if (currentMenu == MAIN_MENU) {
-      currentMenu = BAUD_RATE_MENU;
-      showBaudRateSelection();
-    } else if (currentMenu == BAUD_RATE_MENU) {
-      Serial.print("Baud Rate Selected: ");
-      Serial.println(baudRates[currentBaudIndex]);
-      currentMenu = SERIAL_CONFIG_MENU;
-      showSerialConfigSelection();
-    } else if (currentMenu == SERIAL_CONFIG_MENU) {
-      Serial.print("Serial Config Selected: ");
-      Serial.println(serialConfigs[currentSerialConfigIndex]);
-      currentMenu = METER_ID_MENU;
-      showMeterIdSelection();
-    } else if (currentMenu == METER_ID_MENU) {
-      Serial.print("Meter ID Selected: ");
-      Serial.println(meterId);
-      currentMenu = FUNCTION_CODE_MENU;
-      showFunctionCodeSelection();
-    } else if (currentMenu == FUNCTION_CODE_MENU) {
-      Serial.print("Func: ");
-      Serial.println(functionCodes[currentFunctionCodeIndex]);
-      currentMenu = REGISTER_VALUE_MENU;
-      showFinalSelection();
-    } else if (currentMenu == REGISTER_VALUE_MENU) {
-      Serial.print("register value: ");
-      Serial.println(registerValue);
-      showRegisterValueSelection();
-    }
-    delay(200);
+  Serial.println("BTN_SELECT Pressed");
+  if (currentMenu == MAIN_MENU) {
+    currentMenu = BAUD_RATE_MENU;
+    showBaudRateSelection();
+  } else if (currentMenu == BAUD_RATE_MENU) {
+    currentMenu = SERIAL_CONFIG_MENU;
+    showSerialConfigSelection();
+  } else if (currentMenu == SERIAL_CONFIG_MENU) {
+    currentMenu = METER_ID_MENU;
+    showMeterIdSelection();
+  } else if (currentMenu == METER_ID_MENU) {
+    currentMenu = FUNCTION_CODE_MENU;
+    showFunctionCodeSelection();
+  } else if (currentMenu == FUNCTION_CODE_MENU) {
+    currentMenu = FINAL_SELECTION_MENU;  // New transition
+    showFinalSelection();
   }
+  else if (currentMenu == FINAL_SELECTION_MENU) {
+    currentMenu = REGISTER_VALUE_MENU;  // Go to register config
+    showRegisterValueSelection();
+  }
+  else if (currentMenu == REGISTER_VALUE_MENU) {
+    currentMenu = INITIALIZE_SERIAL_MENU;
+    showInitializeSerial();
+  }
+  delay(200);
+}
 
   if (!digitalRead(BTN_BACK)) {
     Serial.println("BTN_BACK Pressed");
@@ -213,18 +214,21 @@ void loop() {
     } else if (currentMenu == METER_ID_MENU) {
       currentMenu = SERIAL_CONFIG_MENU;
       showSerialConfigSelection();
-    } else if (currentMenu == FUNCTION_CODE_MENU) {
-      currentMenu = METER_ID_MENU;
-      showFunctionCodeSelection();
-    } else if (currentMenu == REGISTER_VALUE_MENU) {
-      currentMenu = FUNCTION_CODE_MENU;
-      showFunctionCodeSelection();
-    }
+    } else if (currentMenu == FINAL_SELECTION_MENU) {
+    currentMenu = FUNCTION_CODE_MENU;  // Back to function codes
+    showFunctionCodeSelection();
+  }
+  else if (currentMenu == REGISTER_VALUE_MENU) {
+    currentMenu = FINAL_SELECTION_MENU;  // Back to final summary
+    showFinalSelection();
+  }
+  else if (currentMenu == INITIALIZE_SERIAL_MENU) {
+    currentMenu = REGISTER_VALUE_MENU;  // Back to register config
+    showRegisterValueSelection();
+  }
     delay(200);
   }
 }
-
-// Display Functions
 
 void showMainMenu() {
   display.clearDisplay();
@@ -303,6 +307,26 @@ void showRegisterValueSelection() {
   display.print(registerCount);
   if (registerConfigSelection == 2) display.print(" <");
 
+  display.display();
+}
+
+void showInitializeSerial() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(10, 30);
+  display.print("Initializing Serial...");
+  display.display();
+  
+  // Call Modbus setup with selected parameters
+  setupModbus(baudRates[currentBaudIndex], 
+             serialConfigs[currentSerialConfigIndex],
+             meterId);
+  delay(3000);
+  readModbusValues(registerValue,registerCount);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(10, 30);
+  display.print(dataFromMeter);
   display.display();
 }
 
