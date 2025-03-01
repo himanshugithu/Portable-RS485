@@ -59,4 +59,4 @@ An embedded system for monitoring energy meters using Modbus RTU protocol with O
 2. **Setup**
    ```bash
    git clone https://github.com/yourusername/energy-meter-monitor.git
-   cd energy-meter-monitor
+   cd portable_RS485
