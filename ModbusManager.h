@@ -12,5 +12,5 @@ void preTransmission();
 void postTransmission();
 
 float convertToFloat(uint16_t , uint16_t );
-void readModbusValues(int,int);
+void readModbusValues(int,int,float,String);
 #endif // MODBUS_MANAGER_H

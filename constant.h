@@ -6,7 +6,7 @@
 #define RS485_EN_PIN 4 
 
 extern float dataFromMeter;
-
+extern uint16_t result;
 #endif
 
   // setupModbus(baudRates[currentBaudIndex],serialConfigs[currentSerialConfigIndex],meterId);

@@ -1,9 +1,8 @@
 #include <Wire.h>
 #include <Adafruit_SH110X.h>
 #include "ModbusManager.h"
-
 #include "constant.h"
- 
+
 // OLED display dimensions
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -20,14 +19,17 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
 #define BTN_BACK 19
 
 // Menu states
-enum MenuState { MAIN_MENU,
-                 BAUD_RATE_MENU,
-                 SERIAL_CONFIG_MENU,
-                 METER_ID_MENU,
-                 FUNCTION_CODE_MENU,
-                 FINAL_SELECTION_MENU,
-                 REGISTER_VALUE_MENU,
-                 INITIALIZE_SERIAL_MENU };
+enum MenuState {
+  MAIN_MENU,
+  BAUD_RATE_MENU,
+  SERIAL_CONFIG_MENU,
+  METER_ID_MENU,
+  FUNCTION_CODE_MENU,
+  FINAL_SELECTION_MENU,
+  DATA_TYPE_MENU,       // Moved before register menu
+  REGISTER_VALUE_MENU,  // Now comes after data type
+  INITIALIZE_SERIAL_MENU
+};
 MenuState currentMenu = MAIN_MENU;
 
 // Main menu options
@@ -44,6 +46,18 @@ int baudRate = 0;
 const char* serialConfigs[] = { "8N1", "8E1", "8O1" };
 int serialConfigLength = sizeof(serialConfigs) / sizeof(serialConfigs[0]);
 int currentSerialConfigIndex = 0;
+// Add these variables at the top
+int scaleIndex = 0;
+const float scaleValues[] = {0.1, 0.01, 0.001};
+const int scaleValuesCount = sizeof(scaleValues) / sizeof(scaleValues[0]);
+
+const char* functionCodes[] = { "0x03", "0x04" };
+int functionCodeLength = sizeof(functionCodes) / sizeof(functionCodes[0]);
+int currentFunctionCodeIndex = 0;
+
+const char* dataTypes[] = { "Float", "UINT", "Long" };
+int currentDataTypeIndex = 0;
+const int dataTypeLength = sizeof(dataTypes) / sizeof(dataTypes[0]);
 
 int meterId = 1;
 int registerValue = 1;
@@ -51,12 +65,12 @@ int registerStep = 1;
 int registerCount = 1;            // Added count variable
 int registerConfigSelection = 0;  // 0: Value, 1: Step, 2: Count (changed to integer)
 float dataFromMeter = 0.0;
+float registerScale = 1.0;
+int startIndexRegister = 0;
+const int itemsPerPageRegister = 3;
+String selectedDataType;
 
-// const int functionCodes[] = { 0x03, 0x04, 0x06, 0x10 };
-const char* functionCodes[] = { "0x03", "0x04" };
-int functionCodeLength = sizeof(functionCodes) / sizeof(functionCodes[0]);
-int currentFunctionCodeIndex = 0;
-// bool registerConfigSelection = true;
+
 // Function prototypes
 void showMainMenu();
 void showBaudRateSelection();
@@ -100,23 +114,33 @@ void loop() {
       currentMainMenuIndex = (currentMainMenuIndex - 1 + mainMenuLength) % mainMenuLength;
       showMainMenu();
     } else if (currentMenu == REGISTER_VALUE_MENU) {
-      registerConfigSelection = (registerConfigSelection - 1 + 3) % 3;  // Toggle between value and step
+      // Wrap selection upward
+      registerConfigSelection = (registerConfigSelection - 1 + 4) % 4;  // 4 items total
+      // Adjust start index to keep selection visible
+      startIndexRegister = (registerConfigSelection >= (itemsPerPageRegister - 1))
+                             ? (registerConfigSelection - (itemsPerPageRegister - 1))
+                             : 0;
       showRegisterValueSelection();
     }
     delay(200);
   }
 
-  if (!digitalRead(BTN_DOWN)) {
-    Serial.println("BTN_DOWN Pressed");
-    if (currentMenu == MAIN_MENU) {
-      currentMainMenuIndex = (currentMainMenuIndex + 1) % mainMenuLength;
-      showMainMenu();
-    } else if (currentMenu == REGISTER_VALUE_MENU) {
-      registerConfigSelection = (registerConfigSelection + 1) % 3;  // Toggle between value and step
-      showRegisterValueSelection();
-    }
-    delay(200);
+if (!digitalRead(BTN_DOWN)) {
+  Serial.println("BTN_DOWN Pressed");
+  if (currentMenu == MAIN_MENU) {
+    currentMainMenuIndex = (currentMainMenuIndex + 1) % mainMenuLength;
+    showMainMenu();
+  } else if (currentMenu == REGISTER_VALUE_MENU) {
+    // Wrap selection downward
+    registerConfigSelection = (registerConfigSelection + 1) % 4; // 4 items total
+    // Adjust start index to keep selection visible
+    startIndexRegister = (registerConfigSelection >= (itemsPerPageRegister - 1)) 
+                          ? (registerConfigSelection - (itemsPerPageRegister - 1)) 
+                          : 0;
+    showRegisterValueSelection();
   }
+  delay(200);
+}
 
   if (!digitalRead(BTN_LEFT)) {
     Serial.println("BTN_LEFT Pressed");
@@ -133,13 +157,15 @@ void loop() {
       currentFunctionCodeIndex = (currentFunctionCodeIndex - 1 + functionCodeLength) % functionCodeLength;
       showFunctionCodeSelection();
     } else if (currentMenu == REGISTER_VALUE_MENU) {
-      if (registerConfigSelection == 0) {  // Value
+      if (registerConfigSelection == 0) {
         registerValue += registerStep;
         registerValue = max(0, registerValue);
-      } else if (registerConfigSelection == 1) {  // Step
+      } else if (registerConfigSelection == 1) {
         registerStep = max(1, registerStep + 1);
-      } else if (registerConfigSelection == 2) {  // Count
+      } else if (registerConfigSelection == 2) {
         registerCount = min(4, max(1, registerCount + 1));
+      } else if (registerConfigSelection == 3) {  // Scale
+        scaleIndex = (scaleIndex + 1) % scaleValuesCount;
       }
       showRegisterValueSelection();
     }
@@ -162,12 +188,14 @@ void loop() {
       currentFunctionCodeIndex = (currentFunctionCodeIndex + 1) % functionCodeLength;
       showFunctionCodeSelection();
     } else if (currentMenu == REGISTER_VALUE_MENU) {
-      if (registerConfigSelection == 0) {  // Value
+      if (registerConfigSelection == 0) {
         registerValue = max(0, registerValue - registerStep);
-      } else if (registerConfigSelection == 1) {  // Step
+      } else if (registerConfigSelection == 1) {
         registerStep = max(1, registerStep - 1);
-      } else if (registerConfigSelection == 2) {  // Count
+      } else if (registerConfigSelection == 2) {
         registerCount = max(1, registerCount - 1);
+      } else if (registerConfigSelection == 3) {  // Scale
+        scaleIndex = (scaleIndex - 1 + scaleValuesCount) % scaleValuesCount;
       }
       showRegisterValueSelection();
     }
@@ -175,60 +203,86 @@ void loop() {
   }
 
   if (!digitalRead(BTN_SELECT)) {
-  Serial.println("BTN_SELECT Pressed");
-  if (currentMenu == MAIN_MENU) {
-    currentMenu = BAUD_RATE_MENU;
-    showBaudRateSelection();
-  } else if (currentMenu == BAUD_RATE_MENU) {
-    currentMenu = SERIAL_CONFIG_MENU;
-    showSerialConfigSelection();
-  } else if (currentMenu == SERIAL_CONFIG_MENU) {
-    currentMenu = METER_ID_MENU;
-    showMeterIdSelection();
-  } else if (currentMenu == METER_ID_MENU) {
-    currentMenu = FUNCTION_CODE_MENU;
-    showFunctionCodeSelection();
-  } else if (currentMenu == FUNCTION_CODE_MENU) {
-    currentMenu = FINAL_SELECTION_MENU;  // New transition
-    showFinalSelection();
-  }
-  else if (currentMenu == FINAL_SELECTION_MENU) {
-    currentMenu = REGISTER_VALUE_MENU;  // Go to register config
-    showRegisterValueSelection();
-  }
-  else if (currentMenu == REGISTER_VALUE_MENU) {
-    currentMenu = INITIALIZE_SERIAL_MENU;
-    showInitializeSerial();
-  }
-  delay(200);
-}
+    Serial.println("BTN_SELECT Pressed");
+    if (currentMenu == MAIN_MENU) {
+      currentMenu = BAUD_RATE_MENU;
+      showBaudRateSelection();
+    } else if (currentMenu == BAUD_RATE_MENU) {
+      Serial.print("Baud Rate Selected: ");
+      Serial.println(baudRates[currentBaudIndex]);
+      currentMenu = SERIAL_CONFIG_MENU;
+      showSerialConfigSelection();
+    } else if (currentMenu == SERIAL_CONFIG_MENU) {
+      Serial.print("Serial Config Selected: ");
+      Serial.println(serialConfigs[currentSerialConfigIndex]);
+      currentMenu = METER_ID_MENU;
+      showMeterIdSelection();
+    } else if (currentMenu == METER_ID_MENU) {
+      Serial.print("Meter ID Selected: ");
+      Serial.println(meterId);
+      currentMenu = FUNCTION_CODE_MENU;
+      showFunctionCodeSelection();
+    } else if (currentMenu == FUNCTION_CODE_MENU) {
+      Serial.print("Function code: ");
+      Serial.println(functionCodes[currentFunctionCodeIndex]);
+      currentMenu = FINAL_SELECTION_MENU;  // New transition
+      showFinalSelection();
+    } else if (currentMenu == FINAL_SELECTION_MENU) {
+      currentMenu = DATA_TYPE_MENU;  // Go to data type first
+      showDataTypeSelection();
+    } else if (currentMenu == DATA_TYPE_MENU) {
+      Serial.print("Data Type: ");
+      Serial.println(dataTypes[currentDataTypeIndex]);
+      currentMenu = REGISTER_VALUE_MENU;  // Then to register config
+      showRegisterValueSelection();
+    } else if (currentMenu == REGISTER_VALUE_MENU) {
+      currentMenu = INITIALIZE_SERIAL_MENU;
+      showInitializeSerial();
+    }
 
-if (!digitalRead(BTN_BACK)) {
-  Serial.println("BTN_BACK Pressed");
-  if (currentMenu == BAUD_RATE_MENU) {
-    currentMenu = MAIN_MENU;
-    showMainMenu();
-  } else if (currentMenu == SERIAL_CONFIG_MENU) {
-    currentMenu = BAUD_RATE_MENU;
-    showBaudRateSelection();
-  } else if (currentMenu == METER_ID_MENU) {
-    currentMenu = SERIAL_CONFIG_MENU;
-    showSerialConfigSelection();
-  } else if (currentMenu == FUNCTION_CODE_MENU) {  
-    currentMenu = METER_ID_MENU;
-    showMeterIdSelection();
-  } else if (currentMenu == FINAL_SELECTION_MENU) {
-    currentMenu = FUNCTION_CODE_MENU;
-    showFunctionCodeSelection();
-  } else if (currentMenu == REGISTER_VALUE_MENU) {
-    currentMenu = FINAL_SELECTION_MENU;
-    showFinalSelection();
-  } else if (currentMenu == INITIALIZE_SERIAL_MENU) {
-    currentMenu = REGISTER_VALUE_MENU;
-    showRegisterValueSelection();
+    delay(200);
   }
-  delay(200);
-}
+
+  if (!digitalRead(BTN_BACK)) {
+    Serial.println("BTN_BACK Pressed");
+    if (currentMenu == BAUD_RATE_MENU) {
+      currentMenu = MAIN_MENU;
+      showMainMenu();
+    } else if (currentMenu == SERIAL_CONFIG_MENU) {
+      currentMenu = BAUD_RATE_MENU;
+      showBaudRateSelection();
+    } else if (currentMenu == METER_ID_MENU) {
+      currentMenu = SERIAL_CONFIG_MENU;
+      showSerialConfigSelection();
+    } else if (currentMenu == FUNCTION_CODE_MENU) {
+      currentMenu = METER_ID_MENU;
+      showMeterIdSelection();
+    } else if (currentMenu == FINAL_SELECTION_MENU) {
+      currentMenu = FUNCTION_CODE_MENU;
+      showFunctionCodeSelection();
+    } else if (currentMenu == DATA_TYPE_MENU) {
+      currentMenu = FINAL_SELECTION_MENU;
+      showFinalSelection();
+    } else if (currentMenu == REGISTER_VALUE_MENU) {
+      currentMenu = DATA_TYPE_MENU;
+      showDataTypeSelection();
+    } else if (currentMenu == INITIALIZE_SERIAL_MENU) {
+      currentMenu = REGISTER_VALUE_MENU;
+      showRegisterValueSelection();
+    }
+    delay(200);
+  }
+  if (!digitalRead(BTN_UP) || !digitalRead(BTN_DOWN)) {
+    if (currentMenu == DATA_TYPE_MENU) {
+      if (!digitalRead(BTN_DOWN)) {
+        currentDataTypeIndex = (currentDataTypeIndex + 1) % dataTypeLength;
+      } else {
+        currentDataTypeIndex = (currentDataTypeIndex - 1 + dataTypeLength) % dataTypeLength;
+      }
+      showDataTypeSelection();
+      delay(200);
+    }
+  }
 }
 
 void showMainMenu() {
@@ -260,6 +314,7 @@ void showSerialConfigSelection() {
   display.display();
 }
 
+
 void showMeterIdSelection() {
   display.clearDisplay();
   display.setCursor(10, 20);
@@ -284,49 +339,63 @@ void showRegisterValueSelection() {
   display.setCursor(0, 0);
   display.print("Modify:");
 
-  // Value
-  display.setCursor(20, 20);
-  if (registerConfigSelection == 0) display.print(">");
-  else display.print(" ");
-  display.print(" Value: ");
-  display.print(registerValue);
-  if (registerConfigSelection == 0) display.print(" <");
+  int yPos = 20;
+  for (int i = 0; i < itemsPerPageRegister; i++) {
+    int itemIndex = startIndexRegister + i;
+    if (itemIndex >= 4) break;
 
-  // Step
-  display.setCursor(20, 35);
-  if (registerConfigSelection == 1) display.print(">");
-  else display.print(" ");
-  display.print(" Step: ");
-  display.print(registerStep);
-  if (registerConfigSelection == 1) display.print(" <");
+    display.setCursor(20, yPos + (i * 15));
 
-  // Count
-  display.setCursor(20, 50);
-  if (registerConfigSelection == 2) display.print(">");
-  else display.print(" ");
-  display.print(" Count: ");
-  display.print(registerCount);
-  if (registerConfigSelection == 2) display.print(" <");
+    if (itemIndex == registerConfigSelection) display.print(">");
+    else display.print(" ");
+
+    switch (itemIndex) {
+      case 0:
+        display.print("Value: ");
+        display.print(registerValue);
+        break;
+      case 1:
+        display.print("Step: ");
+        display.print(registerStep);
+        break;
+      case 2:
+        display.print("Count: ");
+        display.print(registerCount);
+        break;
+      case 3:
+        display.print("Scale: ");
+        display.print(scaleValues[scaleIndex], 3);
+        break;
+    }
+
+    if (itemIndex == registerConfigSelection) display.print(" <");
+  }
+
+  // Scroll indicators
+  if (startIndexRegister > 0) display.drawTriangle(110, 20, 115, 15, 120, 20, SH110X_WHITE);
+  if (startIndexRegister + itemsPerPageRegister < 4) display.drawTriangle(110, 57, 115, 62, 120, 57, SH110X_WHITE);
 
   display.display();
 }
+
 
 void showInitializeSerial() {
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(10, 30);
-  display.print("Initializing Serial...");
+  display.print("Collecting Data...");
   display.display();
-  
+
   // Call Modbus setup with selected parameters
-  setupModbus(baudRates[currentBaudIndex], 
-             serialConfigs[currentSerialConfigIndex],
-             meterId);
-  delay(3000);
-  readModbusValues(registerValue,registerCount);
+  setupModbus(baudRates[currentBaudIndex],
+              serialConfigs[currentSerialConfigIndex],
+              meterId);
+  delay(1000);
+  readModbusValues(registerValue, registerCount,scaleValues[scaleIndex],selectedDataType);
   display.clearDisplay();
-  display.setTextSize(1);
-  display.setCursor(10, 30);
+  display.setTextSize(2);
+  display.setCursor(40, 30);
+  // display.print(dataFromMeter * scaleValues[scaleIndex]);
   display.print(dataFromMeter);
   display.display();
 }
@@ -349,5 +418,24 @@ void showFinalSelection() {
   display.print("Function: ");
   display.print(functionCodes[currentFunctionCodeIndex]);
 
+  display.display();
+}
+
+void showDataTypeSelection() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(10, 7);
+  display.print("Data Type:");
+
+  for (int i = 0; i < dataTypeLength; i++) {
+      display.setCursor(30, 23 + i * 12);
+      if (i == currentDataTypeIndex) {
+          display.print("> ");
+          selectedDataType = dataTypes[i];
+      } else {
+          display.print("  ");
+      }
+      display.print(dataTypes[i]);
+}
   display.display();
 }
