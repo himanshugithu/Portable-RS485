@@ -387,9 +387,7 @@ void showInitializeSerial() {
   display.display();
 
   // Call Modbus setup with selected parameters
-  setupModbus(baudRates[currentBaudIndex],
-              serialConfigs[currentSerialConfigIndex],
-              meterId);
+  setupModbus(baudRates[currentBaudIndex],serialConfigs[currentSerialConfigIndex],meterId);
   delay(1000);
   readModbusValues(registerValue, registerCount,scaleValues[scaleIndex],selectedDataType);
   display.clearDisplay();
