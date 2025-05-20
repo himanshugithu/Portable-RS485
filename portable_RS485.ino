@@ -15,8 +15,9 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
 #define BTN_DOWN 33
 #define BTN_LEFT 34
 #define BTN_RIGHT 35
-#define BTN_SELECT 18
-#define BTN_BACK 19
+#define BTN_SELECT 19
+#define BTN_BACK 18
+
 
 // Menu states
 enum MenuState {
@@ -32,9 +33,9 @@ enum MenuState {
 };
 MenuState currentMenu = MAIN_MENU;
 
-// Main menu options
-const char* mainMenu[] = { "Energy Meter", "Solar Inverter" };
-int mainMenuLength = sizeof(mainMenu) / sizeof(mainMenu[0]);
+// Change the main menu options
+const char* mainMenu[] = { "Portable RS485" }; // Changed from Energy Meter/Solar Inverter
+int mainMenuLength = sizeof(mainMenu) / sizeof(mainMenu[0]); // This will now be 1
 int currentMainMenuIndex = 0;
 
 // Baud rate options
@@ -43,7 +44,7 @@ int baudRateLength = sizeof(baudRates) / sizeof(baudRates[0]);
 int currentBaudIndex = 0;
 int baudRate = 0;
 // Serial configurations
-const char* serialConfigs[] = { "8N1", "8E1", "8O1" };
+const char* serialConfigs[] = { "8N1","8O1","8E1" };
 int serialConfigLength = sizeof(serialConfigs) / sizeof(serialConfigs[0]);
 int currentSerialConfigIndex = 0;
 // Add these variables at the top
@@ -111,8 +112,8 @@ void loop() {
   if (!digitalRead(BTN_UP)) {
     Serial.println("BTN_UP Pressed");
     if (currentMenu == MAIN_MENU) {
-      currentMainMenuIndex = (currentMainMenuIndex - 1 + mainMenuLength) % mainMenuLength;
-      showMainMenu();
+      // currentMainMenuIndex = (currentMainMenuIndex - 1 + mainMenuLength) % mainMenuLength;
+      // showMainMenu();
     } else if (currentMenu == REGISTER_VALUE_MENU) {
       // Wrap selection upward
       registerConfigSelection = (registerConfigSelection - 1 + 4) % 4;  // 4 items total
@@ -128,8 +129,8 @@ void loop() {
 if (!digitalRead(BTN_DOWN)) {
   Serial.println("BTN_DOWN Pressed");
   if (currentMenu == MAIN_MENU) {
-    currentMainMenuIndex = (currentMainMenuIndex + 1) % mainMenuLength;
-    showMainMenu();
+    // currentMainMenuIndex = (currentMainMenuIndex + 1) % mainMenuLength;
+    // showMainMenu();
   } else if (currentMenu == REGISTER_VALUE_MENU) {
     // Wrap selection downward
     registerConfigSelection = (registerConfigSelection + 1) % 4; // 4 items total
@@ -287,52 +288,166 @@ if (!digitalRead(BTN_DOWN)) {
 
 void showMainMenu() {
   display.clearDisplay();
-  display.setTextSize(1);
-  for (int i = 0; i < mainMenuLength; i++) {
-    display.setCursor(10, 20 + i * 20);
-    display.print(i == currentMainMenuIndex ? " > " : "   ");
-    display.println(mainMenu[i]);
-  }
+  
+  // Display "Portable" with text size 2
+  display.setTextSize(2);
+  int16_t x1, y1;
+  uint16_t w, h;
+  
+  // Calculate position for "Portable"
+  display.getTextBounds("Portable", 0, 0, &x1, &y1, &w, &h);
+  int xPortable = (SCREEN_WIDTH - w) / 2;
+  int yPortable = 10;  // Starting Y position
+  display.setCursor(xPortable, yPortable);
+  display.print("Portable");
+
+  // Display "RS485" with text size 1
+  display.setTextSize(2);
+  
+  // Calculate position for "RS485"
+  display.getTextBounds("RS485", 0, 0, &x1, &y1, &w, &h);
+  int xRS485 = (SCREEN_WIDTH - w) / 2;
+  int yRS485 = yPortable + 30;  // 20 pixels below "Portable"
+  display.setCursor(xRS485, yRS485);
+  display.print("RS485");
+
   display.display();
+  display.setTextSize(1);
 }
 
 void showBaudRateSelection() {
   display.clearDisplay();
-  display.setCursor(10, 20);
-  display.print("Baud Rate:");
-  display.setCursor(60, 40);
-  display.print(baudRates[currentBaudIndex]);
+  display.setTextSize(1);
+  
+  // Calculate positions dynamically
+  int16_t x1, y1;
+  uint16_t w, h;
+  
+  // Center "Baud Rate:" header
+  String header = "Baud Rate:";
+  display.getTextBounds(header, 0, 0, &x1, &y1, &w, &h);
+  int headerX = (SCREEN_WIDTH - w) / 2;
+  display.setCursor(headerX, 10);
+  display.print(header);
+
+  // Get current baud rate string dimensions
+  String baudStr = String(baudRates[currentBaudIndex]);
+  display.getTextBounds(baudStr, 0, 0, &x1, &y1, &w, &h);
+  
+  // Calculate positions for arrows and value
+  int arrowSpacing = 6; // Space between arrows and value
+  int totalWidth = 6 + w + 6; // 6px per arrow + value width
+  int startX = (SCREEN_WIDTH - totalWidth) / 2;
+
+  // Draw elements
+  display.setCursor(startX, 30);
+  display.print("<");
+  
+  display.setCursor(startX + 6 + arrowSpacing, 30);
+  display.print(baudStr);
+  
+  display.setCursor(startX + 6 + arrowSpacing + w + arrowSpacing, 30);
+  display.print(">");
+
   display.display();
 }
 
 void showSerialConfigSelection() {
   display.clearDisplay();
-  display.setCursor(10, 20);
-  display.print("Serial Config:");
-  display.setCursor(60, 40);
-  display.print(serialConfigs[currentSerialConfigIndex]);
+  display.setTextSize(1);
+  
+  // Center header
+  String header = "Serial Config:";
+  int16_t x1, y1;
+  uint16_t w, h;
+  display.getTextBounds(header, 0, 0, &x1, &y1, &w, &h);
+  display.setCursor((SCREEN_WIDTH - w)/2, 10);
+  display.print(header);
+
+  // Get config string dimensions
+  String configStr = serialConfigs[currentSerialConfigIndex];
+  display.getTextBounds(configStr, 0, 0, &x1, &y1, &w, &h);
+  
+  // Calculate positions
+  int arrowSpacing = 6;
+  int totalWidth = 6 + w + 6;
+  int startX = (SCREEN_WIDTH - totalWidth)/2;
+
+  // Draw elements
+  display.setCursor(startX, 30);
+  display.print("<");
+  display.setCursor(startX + 6 + arrowSpacing, 30);
+  display.print(configStr);
+  display.setCursor(startX + 6 + arrowSpacing + w + arrowSpacing, 30);
+  display.print(">");
+
   display.display();
 }
 
 
 void showMeterIdSelection() {
   display.clearDisplay();
-  display.setCursor(10, 20);
-  display.print("Meter ID:");
-  display.setCursor(60, 40);
-  display.print(meterId);
+  display.setTextSize(1);
+  
+  // Center header
+  String header = "Meter ID:";
+  int16_t x1, y1;
+  uint16_t w, h;
+  display.getTextBounds(header, 0, 0, &x1, &y1, &w, &h);
+  display.setCursor((SCREEN_WIDTH - w)/2, 10);
+  display.print(header);
+
+  // Get meter ID string dimensions
+  String idStr = String(meterId);
+  display.getTextBounds(idStr, 0, 0, &x1, &y1, &w, &h);
+  
+  // Calculate positions
+  int arrowSpacing = 6;
+  int totalWidth = 6 + w + 6;
+  int startX = (SCREEN_WIDTH - totalWidth)/2;
+
+  // Draw elements
+  display.setCursor(startX, 30);
+  display.print("<");
+  display.setCursor(startX + 6 + arrowSpacing, 30);
+  display.print(idStr);
+  display.setCursor(startX + 6 + arrowSpacing + w + arrowSpacing, 30);
+  display.print(">");
+
   display.display();
 }
 
 void showFunctionCodeSelection() {
   display.clearDisplay();
-  display.setCursor(10, 20);
-  display.print("Function Code:");
-  display.setCursor(20, 40);
-  display.print(functionCodes[currentFunctionCodeIndex]);
+  display.setTextSize(1);
+  
+  // Center header
+  String header = "Function Code:";
+  int16_t x1, y1;
+  uint16_t w, h;
+  display.getTextBounds(header, 0, 0, &x1, &y1, &w, &h);
+  display.setCursor((SCREEN_WIDTH - w)/2, 10);
+  display.print(header);
+
+  // Get function code dimensions
+  String funcStr = functionCodes[currentFunctionCodeIndex];
+  display.getTextBounds(funcStr, 0, 0, &x1, &y1, &w, &h);
+  
+  // Calculate positions
+  int arrowSpacing = 6;
+  int totalWidth = 6 + w + 6;
+  int startX = (SCREEN_WIDTH - totalWidth)/2;
+
+  // Draw elements
+  display.setCursor(startX, 30);
+  display.print("<");
+  display.setCursor(startX + 6 + arrowSpacing, 30);
+  display.print(funcStr);
+  display.setCursor(startX + 6 + arrowSpacing + w + arrowSpacing, 30);
+  display.print(">");
+
   display.display();
 }
-
 void showRegisterValueSelection() {
   display.clearDisplay();
   display.setTextSize(1);
@@ -346,7 +461,7 @@ void showRegisterValueSelection() {
 
     display.setCursor(20, yPos + (i * 15));
 
-    if (itemIndex == registerConfigSelection) display.print(">");
+    if (itemIndex == registerConfigSelection) display.print("> ");
     else display.print(" ");
 
     switch (itemIndex) {
@@ -381,20 +496,54 @@ void showRegisterValueSelection() {
 
 void showInitializeSerial() {
   display.clearDisplay();
+  
+  // Show loading message
   display.setTextSize(1);
-  display.setCursor(10, 30);
-  display.print("Collecting Data...");
+  String loadingMsg = "Collecting Data...";
+  int16_t x1, y1;
+  uint16_t w, h;
+  
+  // Center loading message
+  display.getTextBounds(loadingMsg, 0, 0, &x1, &y1, &w, &h);
+  display.setCursor((SCREEN_WIDTH - w)/2, (SCREEN_HEIGHT - h)/2);
+  display.print(loadingMsg);
   display.display();
 
-  // Call Modbus setup with selected parameters
-  setupModbus(baudRates[currentBaudIndex],serialConfigs[currentSerialConfigIndex],meterId);
+  // Modbus setup and read
+  setupModbus(baudRates[currentBaudIndex], serialConfigs[currentSerialConfigIndex], meterId);
   delay(1000);
-  readModbusValues(registerValue, registerCount,scaleValues[scaleIndex],selectedDataType);
+  readModbusValues(registerValue, registerCount, scaleValues[scaleIndex], selectedDataType,functionCodes[currentFunctionCodeIndex]);
+
+  // Prepare value display
   display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(40, 30);
-  // display.print(dataFromMeter * scaleValues[scaleIndex]);
-  display.print(dataFromMeter);
+  String valueStr;
+  
+  // Format based on data type
+  if (selectedDataType == "Float") {
+    valueStr = String(dataFromMeter, 2); // 2 decimal places for float
+  } else {
+    valueStr = String((int)(dataFromMeter)); // Integer for UINT/Long
+  }
+
+  // Determine optimal text size
+  int textSize = 2;
+  display.setTextSize(textSize);
+  display.getTextBounds(valueStr, 0, 0, &x1, &y1, &w, &h);
+  
+  // Switch to smaller text if needed
+  if (w > SCREEN_WIDTH - 4) { // -4 for slight padding
+    textSize = 1;
+    display.setTextSize(textSize);
+    display.getTextBounds(valueStr, 0, 0, &x1, &y1, &w, &h);
+  }
+
+  // Calculate centered position
+  int xPos = (SCREEN_WIDTH - w) / 2;
+  int yPos = (SCREEN_HEIGHT - h) / 2;
+
+  // Draw value
+  display.setCursor(xPos, yPos);
+  display.print(valueStr);
   display.display();
 }
 

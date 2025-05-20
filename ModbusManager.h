@@ -7,7 +7,7 @@
 void setupModbus(uint16_t baudRate, const String& serialConfig, uint8_t slaveID);
 void preTransmission();
 void postTransmission();
-void readModbusValues(int address, int count, float scale, const String& dataType);
+void readModbusValues(int address, int count, float scale, const String& dataType, const String& functionCode);
 
 // Template for data conversion
 template <typename T>

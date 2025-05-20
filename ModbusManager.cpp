@@ -53,14 +53,24 @@ T convertToType(uint16_t high, uint16_t low) {
     return result;
 }
 
-void readModbusValues(int address, int count, float scale, const String& dataType) 
+void readModbusValues(int address, int count, float scale, const String& dataType, const String& functionCode) 
 {
-    Serial.println("Address: " + String(address) + ", Count: " + String(count)+ ", Scale : " + String(scale) + ", Data Type : " + String(dataType));
-    uint16_t result = node.readHoldingRegisters(address, count);
+    Serial.println("Address: " + String(address) + ", Count: " + String(count)+ ", Scale : " + String(scale) + ", Data Type : " + String(dataType) + ", Function Code : "+ String(functionCode));
+    uint16_t result;
+    if(functionCode == "0x03")
+    {
+        result = node.readHoldingRegisters(address, count);
+        Serial.println("Holding Register select");
+    }
+    else
+    {
+        result = node.readInputRegisters(address, count);
+        Serial.println("Input Register select");
+    }
     if (result != node.ku8MBSuccess) 
     {
         Serial.println("Error: Failed to read data");
-        
+        dataFromMeter = 0.0;
         return;
     }
 
